@@ -197,9 +197,9 @@ async def callback_inline(call: types.CallbackQuery):
         film_recom = types.InlineKeyboardButton(text='Посоветуй фильм 📺', callback_data='film_recom')
         coctail_recom = types.InlineKeyboardButton(text='Бар-бот 🍸', callback_data='bar')
         quest_recom = types.InlineKeyboardButton(text='Разомнём мозги 💡', callback_data='quest_recom')
-        art_quest = types.InlineKeyboardButton(text='Арт-викторина 🎨', callback_data='art_quest')
+        # art_quest = types.InlineKeyboardButton(text='Арт-викторина 🎨', callback_data='art_quest')
         duck = types.InlineKeyboardButton(text='Хочу гифку с уточкой! 🦆', callback_data='duck')
-        but_list = [duck, art_quest, quest_recom, coctail_recom, film_recom]
+        but_list = [duck, quest_recom, coctail_recom, film_recom]
         keyboard = [[], ]
         markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
         await asyncio.sleep(0.5)
