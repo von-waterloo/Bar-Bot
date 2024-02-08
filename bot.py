@@ -514,7 +514,7 @@ async def callback_inline(call: types.CallbackQuery):
 
     if call.data == 'watch':
         user_id = call.from_user.id
-        await bot.send_message(call.message.chat.id, f'https://hdrezka.co/search/?do=search&subaction=search&q={random_film_byid[user_id].replace(" ","+")}')
+        await bot.send_message(call.message.chat.id, f'https://kinogo.biz/search/{random_film_byid[user_id].replace(" ","%20")}')
 
     if call.data == 'trailer':
         user_id = call.from_user.id
