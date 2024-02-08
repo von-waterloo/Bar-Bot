@@ -204,7 +204,7 @@ async def callback_inline(call: types.CallbackQuery):
         markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
         await asyncio.sleep(0.5)
         mes = await call.message.answer('Чего изволишь?', reply_markup=markup)
-        for i in range(5):
+        for i in range(4):
             await asyncio.sleep(0.5)
             keyboard.append([but_list.pop()])
             markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
