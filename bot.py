@@ -128,9 +128,12 @@ async def coc(name, call):
     for i in rec_list:
         await bot.send_message(call.message.chat.id, f'⚜️ {i.text}')
         await asyncio.sleep(1)
-    await bot.send_photo(call.message.chat.id, f'https://ru.inshaker.com{img}', caption=f'"Опля"! —  <b>"{name}</b>"',
-                         reply_markup=markups(bar='🔙'),
-                         parse_mode='HTML')
+    coctail = await bot.send_photo(call.message.chat.id, f'https://ru.inshaker.com{img}', caption=f'"Вуаля"! — "',
+                                                 parse_mode='HTML')
+    await asyncio.sleep(1)
+    await bot.edit_message_caption(call.message.chat.id, coctail.message_id, parse_mode='HTML', caption= f'"Вуаля"! —  <b>"{name}</b>"')
+    await asyncio.sleep(1)
+    await bot.edit_message_caption(call.message.chat.id, coctail.message_id, parse_mode='HTML', caption= f'"Вуаля"! —  <b>"{name}</b>"', reply_markup=markups(bar='🔙'))
     try:
         warning[user_id] += 1
     except:
@@ -176,18 +179,18 @@ async def start_command(message: types.Message):
                '┈▔▏┣┳┳┳┳▏▕┻┻┻╯▏┈', '┈┈▏╰┻┻┻┻▏▕▂▂▂╱┈┈', '┈┈╲▂▂▂▂▂▏┈┈┈┈┈┈┈', '']
     count = 1
     new_text = loading[0] + '\n' + loading[1]
-    for i in range(15):
+    for i in range(7):
         await asyncio.sleep(0.15)
         await bot.edit_message_text(chat_id=message.chat.id, text=new_text, message_id=skull.message_id)
-        if i == 14:
+        if i == 6:
             await asyncio.sleep(0.2)
             await bot.edit_message_text(reply_markup=markup, chat_id=message.chat.id,
                                         text=new_text + '\n' + 'Салют! Повеселимся?', message_id=skull.message_id)
         count += 1
         new_text += '\n' + loading[count]
-        if count == 8:
-            count = 0
-            new_text = loading[0]
+        # if count == 8:
+        #     count = 0
+        #     new_text = loading[0]
 
 
 @dp.callback_query()
@@ -197,14 +200,14 @@ async def callback_inline(call: types.CallbackQuery):
         film_recom = types.InlineKeyboardButton(text='Посоветуй фильм 📺', callback_data='film_recom')
         coctail_recom = types.InlineKeyboardButton(text='Бар-бот 🍸', callback_data='bar')
         quest_recom = types.InlineKeyboardButton(text='Разомнём мозги 💡', callback_data='quest_recom')
-        # art_quest = types.InlineKeyboardButton(text='Арт-викторина 🎨', callback_data='art_quest')
+        art_quest = types.InlineKeyboardButton(text='Арт-викторина 🎨', callback_data='art_quest')
         duck = types.InlineKeyboardButton(text='Хочу гифку с уточкой! 🦆', callback_data='duck')
-        but_list = [duck, quest_recom, coctail_recom, film_recom]
+        but_list = [duck, art_quest, quest_recom, film_recom, coctail_recom]
         keyboard = [[], ]
         markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
         await asyncio.sleep(0.5)
         mes = await call.message.answer('Чего изволишь?', reply_markup=markup)
-        for i in range(4):
+        for i in range(5):
             await asyncio.sleep(0.5)
             keyboard.append([but_list.pop()])
             markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -372,7 +375,7 @@ async def callback_inline(call: types.CallbackQuery):
         await asyncio.sleep(1)
         await bot.send_message(call.message.chat.id, 'Бинго!')
         await asyncio.sleep(1)
-        await bot.send_message(call.message.chat.id, 'Что дальше', reply_markup=markup)
+        await bot.send_message(call.message.chat.id, 'Что дальше?', reply_markup=markup)
     elif call.data == 'artist2' or call.data == 'artist3' or call.data == 'artist4':
         go = types.InlineKeyboardButton(text='🔙', callback_data='go')
         more = types.InlineKeyboardButton(text='Ещё!', callback_data='art_quest')
@@ -637,7 +640,7 @@ async def callback_inline(call: types.CallbackQuery):
                                                   mimoza='Мимоза', bar='🔙'))
     elif call.data == 'dead':
         await bot.send_message(call.message.chat.id,
-                               '<em>Что тебя не убивает, делает тебя пьянее</em> \n\n© Тибетская мудрость',
+                               '<em>Что тебя не убивает, делает тебя пьянее</em> \n\n© Бар-бот',
                                parse_mode='HTML')
         await asyncio.sleep(2.5)
         await bot.send_photo(call.message.chat.id, FSInputFile('bar/Горькое пойло, Адриан Брауэр, 1631.jpg'),
