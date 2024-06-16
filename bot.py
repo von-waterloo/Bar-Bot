@@ -1,6 +1,5 @@
-import time
-
 from aiogram.utils.media_group import MediaGroupBuilder
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import key
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
@@ -9,10 +8,66 @@ import os, sqlite3, random, asyncio, requests, re
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from Pillow import photo_to_gif_with_duck
+from selenium import webdriver
+from selenium.webdriver.common import by
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.wait import WebDriverWait
 
+scheduler = AsyncIOScheduler()
+
+keywords_url = {
+    'Парсинг 🔎': 'https://kwork.ru/projects?fc=41&view=0',
+    'Десктоп 💻': 'https://kwork.ru/projects?fc=80&view=0',
+    'Айфон, сука, айфон 🍏': 'https://kwork.ru/projects?keyword=%D0%B0%D0%B9%D1%84%D0%BE%D0%BD&a=1',
+}
 
 bot = Bot(key)
 dp = Dispatcher()
+
+
+async def freelancing(keywords, call):
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    driver = webdriver.Chrome(options=options)
+    kworks_already = []
+    with sqlite3.connect('films_base.db') as con:
+        cur = con.cursor()
+        table_name = f'kworks{call.from_user.id}'
+        cur.execute(f"""CREATE TABLE IF NOT EXISTS {table_name} (
+              kworks TEXT)""")
+        cur.execute(f"""SELECT kworks FROM {table_name}""")
+        kworks_list = cur.fetchall()
+        for k in kworks_list:
+            kworks_already.append(k[0])
+
+    for keyword in keywords:
+        await asyncio.sleep(0.1)
+        driver.get(keywords_url[keyword])
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((by.By.CLASS_NAME, 'wants-card__top')))
+        cards = driver.find_elements(by.By.CLASS_NAME, 'wants-card__top')
+        job_list_to_send = []
+        for card in cards:
+            await asyncio.sleep(0.1)
+            send_dict = {}
+            title = card.find_element(by.By.TAG_NAME, 'a').text
+            url_job = card.find_element(by.By.TAG_NAME, 'a').get_attribute('href')
+            price = card.find_element(by.By.CLASS_NAME, 'wants-card__price').find_element(by.By.CLASS_NAME,
+                                                                                          'd-inline').text
+            send_dict['title'] = title
+            send_dict['url_job'] = url_job
+            send_dict['price'] = price
+            if url_job not in kworks_already:
+                job_list_to_send.append(send_dict)
+        for job_to_send in job_list_to_send:
+            await asyncio.sleep(5)
+            await bot.send_message(call.message.chat.id,
+                                   f"{job_to_send['title']}\n{job_to_send['price']}\n{job_to_send['url_job']}")
+            with sqlite3.connect('films_base.db') as con:
+                cur = con.cursor()
+                cur.execute(f"""INSERT INTO {table_name}(kworks) VALUES ('{job_to_send['url_job']}')""")
+                con.commit()
+
+    driver.quit()
 
 
 def markups(**kwargs):
@@ -33,7 +88,8 @@ def markups(**kwargs):
 
 
 alk = ['🍹', '🍸', '🥃', '🍷']
-bar_dict = {'zombie':'Зомби','club': 'Кловер клаб', 'cherry_w': 'Виски с вишней', 'home': 'Домашний слинг', 'bianko': 'Бьянко бриз',
+bar_dict = {'zombie': 'Зомби', 'club': 'Кловер клаб', 'cherry_w': 'Виски с вишней', 'home': 'Домашний слинг',
+            'bianko': 'Бьянко бриз',
             'rhino': 'Розовый носорог', 'smash': 'Текила смэш', 'negr': 'Негрони', 'daiq': 'Дайкири',
             'long': 'Лонг айленд айс ти', 'cosmo': 'Космополитен',
             'sky': 'Небеса',
@@ -53,7 +109,8 @@ bar_dict = {'zombie':'Зомби','club': 'Кловер клаб', 'cherry_w': '
             'porn': 'Порнозвезда', 'dno': 'Золотое дно', 'shashki': 'Алко-шашки', 'bojar': 'Боярский',
             'bojar2': 'Дочь Боярского', 'blood': 'Кровавая Мэри', 'reddog': 'Красный пес', 'dog': 'Собака.ру',
             'reanimator': 'Реаниматор', 'controlshot': 'Контрольный выстрел', 'oyster': 'Устричный шутер',
-            'devil': 'Тессманский дьявол', 'aurora': 'Северное сияние', 'belrus': 'Белый русский', 'meduza':'Медуза', 'foxy lady': 'Фокси леди шутер'}
+            'devil': 'Тессманский дьявол', 'aurora': 'Северное сияние', 'belrus': 'Белый русский', 'meduza': 'Медуза',
+            'foxy lady': 'Фокси леди шутер'}
 
 
 async def coc(name, call):
@@ -87,8 +144,7 @@ async def coc(name, call):
     await bot.edit_message_text(f'<b>{name.upper()}</b> (<em>Загрузка: </em>{ranalk})', call.message.chat.id,
                                 rec_name.message_id, parse_mode='HTML')
 
-
-    link= f'https://ru.inshaker.com/cocktails?q={name}'
+    link = f'https://ru.inshaker.com/cocktails?q={name}'
     response = session.get(link, headers=headers)
     soup = BeautifulSoup(response.text, 'html.parser')
     await asyncio.sleep(0.5)
@@ -96,7 +152,7 @@ async def coc(name, call):
                                 rec_name.message_id, parse_mode='HTML')
     icons_list = []
 
-    icons = soup.find('div', {'class':'cocktail-item-goods'}).find_all('img')
+    icons = soup.find('div', {'class': 'cocktail-item-goods'}).find_all('img')
 
     for i in icons:
         icons_list.append(f'https://ru.inshaker.com{i.get("src")}')
@@ -104,7 +160,7 @@ async def coc(name, call):
         if len(icons_list) == 10:
             break
 
-    link = f'https://ru.inshaker.com{soup.find("a", {"class":"cocktail-item-preview"}).get("href")}'
+    link = f'https://ru.inshaker.com{soup.find("a", {"class": "cocktail-item-preview"}).get("href")}'
 
     response = session.get(link, headers=headers)
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -129,11 +185,13 @@ async def coc(name, call):
         await bot.send_message(call.message.chat.id, f'⚜️ {i.text}')
         await asyncio.sleep(1)
     coctail = await bot.send_photo(call.message.chat.id, f'https://ru.inshaker.com{img}', caption=f'"Вуаля"! — "',
-                                                 parse_mode='HTML')
+                                   parse_mode='HTML')
     await asyncio.sleep(1)
-    await bot.edit_message_caption(call.message.chat.id, coctail.message_id, parse_mode='HTML', caption= f'"Вуаля"! —  <b>"{name}</b>"')
+    await bot.edit_message_caption(call.message.chat.id, coctail.message_id, parse_mode='HTML',
+                                   caption=f'"Вуаля"! —  <b>"{name}</b>"')
     await asyncio.sleep(1)
-    await bot.edit_message_caption(call.message.chat.id, coctail.message_id, parse_mode='HTML', caption= f'"Вуаля"! —  <b>"{name}</b>"', reply_markup=markups(bar='🔙'))
+    await bot.edit_message_caption(call.message.chat.id, coctail.message_id, parse_mode='HTML',
+                                   caption=f'"Вуаля"! —  <b>"{name}</b>"', reply_markup=markups(bar='🔙'))
     try:
         warning[user_id] += 1
     except:
@@ -165,6 +223,8 @@ random_film_byid = {}
 warning = {}
 result = {}
 rand_coc = {}
+current_monitoring_message = {}
+current_monitoring_lists = {}
 
 
 @dp.message(Command('start'))
@@ -195,19 +255,188 @@ async def start_command(message: types.Message):
 
 @dp.callback_query()
 async def callback_inline(call: types.CallbackQuery):
-    if call.data == 'go':
+    if call.data == 'job':
+        but_list = []
+        for keyword in keywords_url.keys():
+            but_list.append([InlineKeyboardButton(text=keyword, callback_data=keyword)])
+        but_list.append([InlineKeyboardButton(text='Мониторить раз в 10 мин ⏱', callback_data='job_monitoring')])
+        but_list.append([InlineKeyboardButton(text='🔙', callback_data='go')])
 
+        markup = types.InlineKeyboardMarkup(inline_keyboard=but_list)
+        await call.message.answer('Что ищем?', reply_markup=markup)
+    if call.data in keywords_url:
+        await freelancing([call.data, ], call)
+    if call.data == 'job_monitoring':
+        but_list = []
+        jobs_ids = [job.id for job in scheduler.get_jobs()]
+        if call.from_user.id.__str__() in jobs_ids:
+            but_list.append([types.InlineKeyboardButton(text='Выключить ⛅', callback_data='stop_m')])
+        else:
+            but_list.append([types.InlineKeyboardButton(text='Включить ☀', callback_data='on_m')])
+        but_list.append([InlineKeyboardButton(text='🔙', callback_data='job')])
+        markup = types.InlineKeyboardMarkup(inline_keyboard=but_list)
+        await call.message.answer('Мониторинг', reply_markup=markup)
+    if call.data == 'on_m':
+        glob_but_list = []
+        glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+        glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+        glob_but_list.append([types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+        glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+
+        glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+        markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+        mes = await call.message.answer('Выбери, что мониторить:', reply_markup=markup)
+        current_monitoring_message[call.from_user.id] = mes.message_id
+        current_monitoring_lists[call.from_user.id] = []
+
+    if call.data == 'pars_add':
+        current_list = current_monitoring_lists[call.from_user.id]
+        current_message = current_monitoring_message[call.from_user.id]
+        if 'Парсинг 🔎' not in current_list or len(current_list) > 1:
+            current_list.clear()
+            current_list.append('Парсинг 🔎')
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎 ✔', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+            glob_but_list.append([types.InlineKeyboardButton(text='СТАРТ 🔥', callback_data='start_m')])
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+        else:
+            current_list.clear()
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+    if call.data == 'desk_pars':
+        current_list = current_monitoring_lists[call.from_user.id]
+        current_message = current_monitoring_message[call.from_user.id]
+        if 'Десктоп 💻' not in current_list or len(current_list) > 1:
+            current_list.clear()
+            current_list.append('Десктоп 💻')
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻 ✔', callback_data='desk_pars')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+            glob_but_list.append([types.InlineKeyboardButton(text='СТАРТ 🔥', callback_data='start_m')])
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+        else:
+            current_list.clear()
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+
+    if call.data == 'iphone_add':
+        current_list = current_monitoring_lists[call.from_user.id]
+        current_message = current_monitoring_message[call.from_user.id]
+        if 'Айфон, сука, айфон 🍏' not in current_list or len(current_list) > 1:
+            current_list.clear()
+            current_list.append('Айфон, сука, айфон 🍏')
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+            glob_but_list.append(
+                [types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏 ✔', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+            glob_but_list.append([types.InlineKeyboardButton(text='СТАРТ 🔥', callback_data='start_m')])
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+        else:
+            current_list.clear()
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+
+    if call.data == 'all_m':
+        current_list = current_monitoring_lists[call.from_user.id]
+        current_message = current_monitoring_message[call.from_user.id]
+        if len(current_list) < 3:
+            current_list.clear()
+            current_list.extend(['Парсинг 🔎', 'Десктоп 💻', 'Айфон, сука, айфон 🍏'])
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+            glob_but_list.append(
+                [types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё ✔', callback_data='all_m')])
+            glob_but_list.append([types.InlineKeyboardButton(text='СТАРТ 🔥', callback_data='start_m')])
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+        else:
+            current_list.clear()
+            glob_but_list = []
+            glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
+            glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
+            glob_but_list.append(
+                [types.InlineKeyboardButton(text='Айфон, сука, айфон 🍏', callback_data='iphone_add')])
+            glob_but_list.append([types.InlineKeyboardButton(text='Всё', callback_data='all_m')])
+
+            glob_but_list.append([InlineKeyboardButton(text='🔙', callback_data='job_monitoring')])
+            markup = types.InlineKeyboardMarkup(inline_keyboard=glob_but_list)
+            await bot.edit_message_reply_markup(call.message.chat.id, current_message, reply_markup=markup)
+
+    if call.data == 'start_m':
+        current_list = current_monitoring_lists[call.from_user.id]
+        scheduler.add_job(freelancing,
+                          'interval',
+                          [current_list, call],
+                          seconds=600,
+                          id=f'{call.from_user.id}',
+                          max_instances=1
+                          )
+        scheduler.start()
+        mes = await bot.send_message(call.message.chat.id, 'Задача успешно добавлена')
+        await asyncio.sleep(2)
+        await mes.delete()
+
+    if call.data == 'stop_m':
+        try:
+            scheduler.remove_job(call.from_user.id.__str__())
+            await call.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text='Включить ☀', callback_data='on_m')]]))
+            mes = await bot.send_message(call.message.chat.id, 'Задача успешно удалена')
+            await asyncio.sleep(2)
+            await mes.delete()
+        except:
+            mes = await bot.send_message(call.message.chat.id, 'Нет активных задач')
+            await asyncio.sleep(2)
+            await mes.delete()
+    if call.data == 'go':
         film_recom = types.InlineKeyboardButton(text='Посоветуй фильм 📺', callback_data='film_recom')
         coctail_recom = types.InlineKeyboardButton(text='Бар-бот 🍸', callback_data='bar')
         quest_recom = types.InlineKeyboardButton(text='Разомнём мозги 💡', callback_data='quest_recom')
         art_quest = types.InlineKeyboardButton(text='Арт-викторина 🎨', callback_data='art_quest')
         duck = types.InlineKeyboardButton(text='Хочу гифку с уточкой! 🦆', callback_data='duck')
-        but_list = [duck, art_quest, quest_recom, film_recom, coctail_recom]
+        job = types.InlineKeyboardButton(text='Заказы на фрилансе 💼', callback_data='job')
+        but_list = [job, duck, art_quest, quest_recom, film_recom, coctail_recom]
         keyboard = [[], ]
         markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
         await asyncio.sleep(0.5)
         mes = await call.message.answer('Чего изволишь?', reply_markup=markup)
-        for i in range(5):
+        for i in range(6):
             await asyncio.sleep(0.5)
             keyboard.append([but_list.pop()])
             markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -223,13 +452,13 @@ async def callback_inline(call: types.CallbackQuery):
         keyboard = [[], ]
         markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
         mes = await call.message.answer('Чего изволишь?', reply_markup=markup)
-        for i in range(4):
+        for i in range(5):
             await asyncio.sleep(0.5)
             keyboard.append([but_list.pop()])
             markup = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
             await bot.edit_message_reply_markup(call.message.chat.id, mes.message_id, reply_markup=markup)
 
-    # УТОЧКА:)
+        # УТОЧКА:)
     elif call.data == 'duck':
         await bot.send_message(call.message.chat.id, 'Скинь мне картинку, я сделаю из неё гифку')
 
@@ -264,7 +493,7 @@ async def callback_inline(call: types.CallbackQuery):
             await bot.delete_message(message.chat.id, gifka.message_id - 2)
             await bot.delete_message(message.chat.id, gifka.message_id - 3)
 
-    # ВОПРОС ИЗ БАЗЫ "ЧТО? ГДЕ? КОГДА?"
+        # ВОПРОС ИЗ БАЗЫ "ЧТО? ГДЕ? КОГДА?"
 
     elif call.data == 'quest_recom':
         user_id = call.from_user.id
@@ -334,7 +563,7 @@ async def callback_inline(call: types.CallbackQuery):
                 await bot.edit_message_text(f'‼️ У тебя {seconds} секунд ‼️', call.message.chat.id,
                                             message_id=timer.message_id, reply_markup=marka)
 
-    # АРТ-ВИКТОРИНА
+        # АРТ-ВИКТОРИНА
     elif call.data == 'art_quest':
         while True:
             artist_list = [i for i in os.listdir('Art')]
@@ -393,7 +622,7 @@ async def callback_inline(call: types.CallbackQuery):
         await asyncio.sleep(1)
         await bot.send_message(call.message.chat.id, 'Что дальше?', reply_markup=markup)
 
-    # РЕКОММЕНДЦИЯ ХОРОШЕГО ФИЛЬМА, КОТОРЫЙ НЕ СМОТРЕЛ
+        # РЕКОММЕНДЦИЯ ХОРОШЕГО ФИЛЬМА, КОТОРЫЙ НЕ СМОТРЕЛ
     elif call.data == 'film_recom':
         headers = {'User-Agent': UserAgent().chrome}
         user_id = call.from_user.id
@@ -413,9 +642,10 @@ async def callback_inline(call: types.CallbackQuery):
                     await bot.edit_message_text('Загрузка: ███▒▒▒▒▒▒▒ 20%', call.message.chat.id, load_id)
                 if i == 70:
                     await bot.edit_message_text('Загрузка: ███▒▒▒▒▒▒▒ 30%', call.message.chat.id, load_id)
-                response = user_session.get(f'https://kritikanstvo.ru/top/movies/best/2022-2024/start/{i}/', headers=headers)
+                response = user_session.get(f'https://kritikanstvo.ru/top/movies/best/2022-2024/start/{i}/',
+                                            headers=headers)
                 soup = BeautifulSoup(response.text, 'html.parser')
-                for j in soup.find('div', {'id':'best'}).find_all('h2'):
+                for j in soup.find('div', {'id': 'best'}).find_all('h2'):
                     best_films.append(j.text)
             # убираем из этого списка просмотренные фильмы
             base_list = []
@@ -451,20 +681,22 @@ async def callback_inline(call: types.CallbackQuery):
             user_session = drivers_dict[user_id]
         response = user_session.get(f'https://kritikanstvo.ru/search/?s={random_film_byid[user_id]}', headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
-        link_film= 'https://kritikanstvo.ru' + soup.find('a', {'class':'cover'}).get('href')
+        link_film = 'https://kritikanstvo.ru' + soup.find('a', {'class': 'cover'}).get('href')
         await bot.edit_message_text('Загрузка: █████▒▒▒▒▒ 50%', call.message.chat.id, load_id)
         response = user_session.get(link_film, headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
         await bot.edit_message_text('Загрузка: ██████▒▒▒▒ 60%', call.message.chat.id, load_id)
-        photo_url = 'https://kritikanstvo.ru' + soup.find_all('a', {'data-fancybox-group':'gallery1'})[0].get('href')
+        photo_url = 'https://kritikanstvo.ru' + soup.find_all('a', {'data-fancybox-group': 'gallery1'})[0].get('href')
         try:
-            photo_url2 = 'https://kritikanstvo.ru' + soup.find_all('a', {'data-fancybox-group':'gallery1'})[1].get('href')
+            photo_url2 = 'https://kritikanstvo.ru' + soup.find_all('a', {'data-fancybox-group': 'gallery1'})[1].get(
+                'href')
         except:
-            photo_url2 = 'https://kritikanstvo.ru' + soup.find_all('a', {'data-fancybox-group':'gallery1'})[-1].get('href')
-        year_search_list = soup.find('div', {'class':'page_item_info'}).find_all('p')
+            photo_url2 = 'https://kritikanstvo.ru' + soup.find_all('a', {'data-fancybox-group': 'gallery1'})[-1].get(
+                'href')
+        year_search_list = soup.find('div', {'class': 'page_item_info'}).find_all('p')
         year = min([re.search(r'\d{4}', i.text)[0] for i in year_search_list])
         try:
-            story = soup.find('div',{'class': 'page_item_story'}).text
+            story = soup.find('div', {'class': 'page_item_story'}).text
         except:
             story = ' '
         await bot.edit_message_text('Загрузка: ███████▒▒▒ 70%', call.message.chat.id, load_id)
@@ -517,16 +749,20 @@ async def callback_inline(call: types.CallbackQuery):
 
     if call.data == 'watch':
         user_id = call.from_user.id
-        await bot.send_message(call.message.chat.id, f'https://kinogo.biz/search/{random_film_byid[user_id].replace(" ","%20")}')
+        await bot.send_message(call.message.chat.id,
+                               f'https://kinogo.biz/search/{random_film_byid[user_id].replace(" ", "%20")}')
 
     if call.data == 'trailer':
         user_id = call.from_user.id
         headers = {'User-Agent': UserAgent().chrome}
         drivers_dict[user_id] = requests.Session()
         user_session = drivers_dict[user_id]
-        response = user_session.get(f'https://www.youtube.com/results?search_query={random_film_byid[user_id]}+официальный трейлер', headers=headers)
+        response = user_session.get(
+            f'https://www.youtube.com/results?search_query={random_film_byid[user_id]}+официальный трейлер',
+            headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
-        link = 'https://www.youtube.com/watch'+ str(soup).split('webCommandMetadata":{"url":"/watch')[1].split('","webPageType"')[0]
+        link = 'https://www.youtube.com/watch' + \
+               str(soup).split('webCommandMetadata":{"url":"/watch')[1].split('","webPageType"')[0]
         await bot.send_message(call.message.chat.id, link)
 
         # try:
@@ -572,7 +808,7 @@ async def callback_inline(call: types.CallbackQuery):
             cur = con.cursor()
             table_name = f'films{user_id}'
             cur.execute(f"""CREATE TABLE IF NOT EXISTS {table_name} (
-            films_list TEXT)""")
+                films_list TEXT)""")
             cur.execute(f"""INSERT INTO {table_name}(films_list) VALUES ('{random_film_byid[user_id]}')""")
         new_markup = markups(trailer='Смотреть трейлер 🎞')
         new_markup.inline_keyboard.append(
@@ -587,7 +823,7 @@ async def callback_inline(call: types.CallbackQuery):
         await asyncio.sleep(2.5)
         await bot.delete_message(call.message.chat.id, bd.message_id)
 
-    # БАР-БОТ
+        # БАР-БОТ
     elif call.data == 'bar':
         await bot.send_message(call.message.chat.id, '🌀Добро пожаловать в бар-бот!🌀')
         await asyncio.sleep(1)
