@@ -12,6 +12,8 @@ from selenium import webdriver
 from selenium.webdriver.common import by
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
 
 scheduler = AsyncIOScheduler()
 
@@ -29,7 +31,8 @@ async def freelancing(keywords, call):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
-    driver = webdriver.Chrome(options=options)
+    options.add_argument("--disable-dev-shm-usage")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)
     kworks_already = []
     with sqlite3.connect('films_base.db') as con:
         cur = con.cursor()
