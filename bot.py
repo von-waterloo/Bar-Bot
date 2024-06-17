@@ -28,6 +28,7 @@ dp = Dispatcher()
 async def freelancing(keywords, call):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
     driver = webdriver.Chrome(options=options)
     kworks_already = []
     with sqlite3.connect('films_base.db') as con:
