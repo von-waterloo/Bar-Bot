@@ -21,6 +21,7 @@ keywords_url = {
     'Парсинг 🔎': 'https://kwork.ru/projects?fc=41&view=0',
     'Десктоп 💻': 'https://kwork.ru/projects?fc=80&view=0',
     'Айфон, сука, айфон 🍏': 'https://kwork.ru/projects?keyword=%D0%B0%D0%B9%D1%84%D0%BE%D0%BD&a=1',
+    'Всё': 'https://kwork.ru/projects?c=11&price-from=5000'
 }
 
 bot = Bot(key)
@@ -45,33 +46,35 @@ async def freelancing(keywords, call):
             kworks_already.append(k[0])
 
     for keyword in keywords:
-        await asyncio.sleep(0.1)
-        driver.get(keywords_url[keyword])
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((by.By.CLASS_NAME, 'wants-card__top')))
-        cards = driver.find_elements(by.By.CLASS_NAME, 'wants-card__top')
-        job_list_to_send = []
-        for card in cards:
+        try:
             await asyncio.sleep(0.1)
-            send_dict = {}
-            title = card.find_element(by.By.TAG_NAME, 'a').text
-            url_job = card.find_element(by.By.TAG_NAME, 'a').get_attribute('href')
-            price = card.find_element(by.By.CLASS_NAME, 'wants-card__price').find_element(by.By.CLASS_NAME,
-                                                                                          'd-inline').text
-            send_dict['title'] = title
-            send_dict['url_job'] = url_job
-            send_dict['price'] = price
-            if url_job not in kworks_already:
-                job_list_to_send.append(send_dict)
-        for job_to_send in job_list_to_send:
-            await asyncio.sleep(5)
-            await bot.send_message(call.message.chat.id,
-                                   f"{job_to_send['title']}\n{job_to_send['price']}\n{job_to_send['url_job']}")
-            with sqlite3.connect('films_base.db') as con:
-                cur = con.cursor()
-                cur.execute(f"""INSERT INTO {table_name}(kworks) VALUES ('{job_to_send['url_job']}')""")
-                con.commit()
-
-    driver.quit()
+            driver.get(keywords_url[keyword])
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((by.By.CLASS_NAME, 'wants-card__top')))
+            cards = driver.find_elements(by.By.CLASS_NAME, 'wants-card__top')
+            job_list_to_send = []
+            for card in cards:
+                await asyncio.sleep(0.1)
+                send_dict = {}
+                title = card.find_element(by.By.TAG_NAME, 'a').text
+                url_job = card.find_element(by.By.TAG_NAME, 'a').get_attribute('href')
+                price = card.find_element(by.By.CLASS_NAME, 'wants-card__price').find_element(by.By.CLASS_NAME,
+                                                                                              'd-inline').text
+                send_dict['title'] = title
+                send_dict['url_job'] = url_job
+                send_dict['price'] = price
+                if url_job not in kworks_already:
+                    job_list_to_send.append(send_dict)
+            for job_to_send in job_list_to_send:
+                await asyncio.sleep(5)
+                await bot.send_message(call.message.chat.id,
+                                       f"{job_to_send['title']}\n{job_to_send['price']}\n{job_to_send['url_job']}")
+                with sqlite3.connect('films_base.db') as con:
+                    cur = con.cursor()
+                    cur.execute(f"""INSERT INTO {table_name}(kworks) VALUES ('{job_to_send['url_job']}')""")
+                    con.commit()
+            driver.quit()
+        except:
+            driver.quit()
 
 
 def markups(**kwargs):
@@ -378,7 +381,7 @@ async def callback_inline(call: types.CallbackQuery):
         current_message = current_monitoring_message[call.from_user.id]
         if len(current_list) < 3:
             current_list.clear()
-            current_list.extend(['Парсинг 🔎', 'Десктоп 💻', 'Айфон, сука, айфон 🍏'])
+            current_list.extend(['Всё'])
             glob_but_list = []
             glob_but_list.append([InlineKeyboardButton(text='Парсинг 🔎', callback_data='pars_add')])
             glob_but_list.append([InlineKeyboardButton(text='Десктоп 💻', callback_data='desk_pars')])
@@ -754,7 +757,7 @@ async def callback_inline(call: types.CallbackQuery):
     if call.data == 'watch':
         user_id = call.from_user.id
         await bot.send_message(call.message.chat.id,
-                               f'https://kinogo.biz/search/{random_film_byid[user_id].replace(" ", "%20")}')
+                               f'https://j.lords.lat/search?q={random_film_byid[user_id].replace(" ", "%20")}')
 
     if call.data == 'trailer':
         user_id = call.from_user.id
