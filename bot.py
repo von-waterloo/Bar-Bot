@@ -33,7 +33,9 @@ async def freelancing(keywords, call):
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)
+    # service = Service(ChromeDriverManager().install())
+    # driver = webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(options=options)
     kworks_already = []
     with sqlite3.connect('films_base.db') as con:
         cur = con.cursor()
@@ -44,37 +46,38 @@ async def freelancing(keywords, call):
         kworks_list = cur.fetchall()
         for k in kworks_list:
             kworks_already.append(k[0])
-
     for keyword in keywords:
+        await asyncio.sleep(0.1)
+        driver.get(keywords_url[keyword])
         try:
-            await asyncio.sleep(0.1)
-            driver.get(keywords_url[keyword])
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((by.By.CLASS_NAME, 'wants-card__top')))
-            cards = driver.find_elements(by.By.CLASS_NAME, 'wants-card__top')
-            job_list_to_send = []
-            for card in cards:
-                await asyncio.sleep(0.1)
-                send_dict = {}
-                title = card.find_element(by.By.TAG_NAME, 'a').text
-                url_job = card.find_element(by.By.TAG_NAME, 'a').get_attribute('href')
-                price = card.find_element(by.By.CLASS_NAME, 'wants-card__price').find_element(by.By.CLASS_NAME,
-                                                                                              'd-inline').text
-                send_dict['title'] = title
-                send_dict['url_job'] = url_job
-                send_dict['price'] = price
-                if url_job not in kworks_already:
-                    job_list_to_send.append(send_dict)
-            for job_to_send in job_list_to_send:
-                await asyncio.sleep(5)
-                await bot.send_message(call.message.chat.id,
-                                       f"{job_to_send['title']}\n{job_to_send['price']}\n{job_to_send['url_job']}")
-                with sqlite3.connect('films_base.db') as con:
-                    cur = con.cursor()
-                    cur.execute(f"""INSERT INTO {table_name}(kworks) VALUES ('{job_to_send['url_job']}')""")
-                    con.commit()
-            driver.quit()
         except:
-            driver.quit()
+            break
+        cards = driver.find_elements(by.By.CLASS_NAME, 'wants-card__top')
+        job_list_to_send = []
+        for card in cards:
+            await asyncio.sleep(0.1)
+            send_dict = {}
+            title = card.find_element(by.By.TAG_NAME, 'a').text
+            url_job = card.find_element(by.By.TAG_NAME, 'a').get_attribute('href')
+            price = card.find_element(by.By.CLASS_NAME, 'wants-card__price').find_element(by.By.CLASS_NAME,
+                                                                                          'd-inline').text
+            send_dict['title'] = title
+            send_dict['url_job'] = url_job
+            send_dict['price'] = price
+            if url_job not in kworks_already:
+                job_list_to_send.append(send_dict)
+        for job_to_send in job_list_to_send:
+            await asyncio.sleep(5)
+            await bot.send_message(call.message.chat.id,
+                                   f"{job_to_send['title']}\n{job_to_send['price']}\n{job_to_send['url_job']}")
+            with sqlite3.connect('films_base.db') as con:
+                cur = con.cursor()
+                cur.execute(f"""INSERT INTO {table_name}(kworks) VALUES ('{job_to_send['url_job']}')""")
+                con.commit()
+
+    driver.close()
+    driver.quit()
 
 
 def markups(**kwargs):
